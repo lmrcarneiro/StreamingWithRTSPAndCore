@@ -142,11 +142,9 @@ class Client:
 					currFrameNbr = rtpPacket.seqNum()
 					print("Current Seq Num: " + str(currFrameNbr))
 										
-					#if currFrameNbr > self.frameNbr: # Discard the late packet
-					self.frameNbr = currFrameNbr
-					self.updateMovie(self.writeFrame(rtpPacket.getPayload()))
-					if currFrameNbr == 500:
-						self.frameNbr = 0
+					if currFrameNbr > self.frameNbr: # Discard the late packet
+						self.frameNbr = currFrameNbr
+						self.updateMovie(self.writeFrame(rtpPacket.getPayload()))
 			except:
 				# Stop listening upon requesting PAUSE or TEARDOWN
 				if self.playEvent.isSet(): 
