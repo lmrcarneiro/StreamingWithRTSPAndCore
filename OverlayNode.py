@@ -26,6 +26,7 @@ class OverlayNode:
 		self.rtpPort = rtpport
 		self.neighbours = neighbours
 		
+		self.neighboursAlive = [False] * len(self.neighbours)
 		self.nextNeigh = None
 		self.reachableClients = []
 		self.clientIsPlaying = []
@@ -41,6 +42,28 @@ class OverlayNode:
 
 		# Handle rtp packets
 		self.handleRtpComms()
+
+		print("Starting HEARTBEAT...") # to discover nodes that have left/crashed
+		# ping neighbours every 10 seconds
+		threading.Thread(target=self.sendHearbeat).start()
+
+	def sendHearbeat(self):
+		sizeNeighs = len(self.neighboursAlive)
+		neighbours = self.neighbours
+		while True:
+			sleep(10)
+			# ver quais os vizinhos que sairam
+			# e dizer q todos os vizinhos sairam
+			for i in range(sizeNeighs):
+				neighIsAlive = self.neighboursAlive[i]
+				neigh = self.neighbours[i]
+				if neighIsAlive == False:
+					print("Neighbour",neigh,"is not alive!")
+				self.neighboursAlive[i] = False
+			
+			# enviar mensagem para todos os vizinhos
+			for neigh in neighbours:
+				self.sendUdp(neigh, "HEARTBEAT")
 
 	# =============== RTP ====================================================================
 	def handleRtpComms(self):
@@ -404,6 +427,17 @@ class OverlayNode:
 				print("To send packets to client",self.reachableClients[-1],"we must send packet to",address[0])
 
 			self.sendUdp(self.nextNeigh, new_msg)
+		
+		elif msg_list[0] == "HEARTBEAT":
+			self.sendUdp(address[0], "ACKED_HEARTBEAT")
+		elif msg_list[0] == "ACKED_HEARTBEAT":
+			src = address[0]
+			#print("Heartbeat ack came from",src)
+			try:
+				ind = self.neighbours.index(src)
+				self.neighboursAlive[ind] = True
+			except ValueError as e:
+				print("\t\t*********ERROR: Couldnt find neighbour",src,"!!!!!**********")
 
 		else:
 			print("Unrecognized message received:",msg)

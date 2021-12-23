@@ -3,6 +3,7 @@ import tkinter.messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
 import socket, threading, sys, traceback, os
+from time import sleep
 
 from RtpPacket import RtpPacket
 
@@ -25,6 +26,7 @@ class Client:
 		self.master.protocol("WM_DELETE_WINDOW", self.handler)
 		self.createWidgets()
 		self.serverAddr = serveraddr
+		self.neighAlive = False
 		self.serverPort = int(serverport)
 		self.rtpPort = int(rtpport)
 		self.fileName = filename
@@ -45,7 +47,19 @@ class Client:
 
 		print("Saying hello to neighbour!")
 		self.sendUdp(serveraddr, "DISCOVER NOIP GO")
-	
+
+		print("Starting HEARTBEAT...") # to discover nodes that have left/crashed
+		# ping neighbours every 10 seconds
+		threading.Thread(target=self.sendHearbeat).start()
+		
+	def sendHearbeat(self):
+		while True:
+			sleep(10)
+			if self.neighAlive == False:
+				print("Neighbour",self.serverAddr,"is not alive!")
+			self.neighAlive = False
+			self.sendUdp(self.serverAddr, "HEARTBEAT")
+
 	def listenUdp(self):
 		sock = self.sock
 
@@ -56,7 +70,11 @@ class Client:
 			print("\n\n Received:", msg, "\n\n")
 			msg_list = msg.split(" ")
 
-			if msg_list[2] == "RETURN":
+			if msg_list[0] == "HEARTBEAT":
+				 self.sendUdp(address[0], "ACKED_HEARTBEAT")
+			elif msg_list[0] == "ACKED_HEARTBEAT":
+				self.neighAlive = True
+			elif msg_list[2] == "RETURN":
 				if self.nextNeigh is None:
 					self.nextNeigh = address[0]
 					print(self.nextNeigh,"is now my next neighbour")
@@ -69,6 +87,7 @@ class Client:
 					print("Something went very wrong!")
 			else:
 				print("2. Something went very wrong!")
+			
 
 	def sendUdp(self, neigh, msg):
 		sock = self.sock
