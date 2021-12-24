@@ -31,7 +31,7 @@ class OverlayNode:
 		self.aliveNeighsLock = threading.Lock()
 		
 		self.nextNeigh = None
-		self.timeToDiscNeigh = []
+		self.timestampDiscNeigh = []
 		self.timeForDiscoveringLastNeigh = datetime.datetime.min
 		self.prevTimeForDiscoveringLastNeigh = datetime.datetime.min
 		self.reachableClients = []
@@ -325,7 +325,7 @@ class OverlayNode:
 
 		print("Saying hello to neighbours!")
 		for neighb in self.neighbours:
-			self.timeToDiscNeigh.append(datetime.datetime.now())
+			self.timestampDiscNeigh.append(datetime.datetime.now())
 			self.sendUdp(neighb, "DISCOVER NOIP GO")
 	
 	def listenUdp(self):
@@ -411,22 +411,24 @@ class OverlayNode:
 				except ValueError as e:
 					print("\t\t*********ERROR: Couldnt find neighbour",src,"!!!!!**********")
 					return
-				self.timeForDiscoveringLastNeigh = datetime.datetime.now() - self.timeToDiscNeigh[ind] 
-
-				if self.nextNeigh is None:
-					self.nextNeigh = address[0]
-					print(self.nextNeigh,"is now my next neighbour")
-					print("Discovered in",self.timeForDiscoveringLastNeigh,"ms")
-				else:
-					if self.timeForDiscoveringLastNeigh < self.prevTimeForDiscoveringLastNeigh:
-						self.nextNeigh = address[0]
-						print(self.nextNeigh,"is now my next neighbour")
-						print("Discovered in",self.timeForDiscoveringLastNeigh,"ms")
+				self.timeForDiscoveringLastNeigh = datetime.datetime.now() - self.timestampDiscNeigh[ind] 
 
 				if len(msg_list) == 3: # é o próprio nó quem mandou o discover
 					print("I sent the DISCOVER myself!")
+
+					if self.nextNeigh is None:
+						self.nextNeigh = address[0]
+						print(self.nextNeigh,"is now my next neighbour")
+						print("Discovered in",self.timeForDiscoveringLastNeigh,"ms")
+					else:
+						if self.timeForDiscoveringLastNeigh < self.prevTimeForDiscoveringLastNeigh:
+							self.nextNeigh = address[0]
+							print(self.nextNeigh,"is now my next neighbour")
+							print("Discovered in",self.timeForDiscoveringLastNeigh,"ms")
+						else:
+							print("Neighbour not altered")
+							#print("Assigned neighbour reponse time is",self.prevTimeForDiscoveringLastNeigh,"and now neighbour",address[0],"responded in",self.timeForDiscoveringLastNeigh)
 				else:
-					msg_list[len(msg_list)-1]
 					msg_list.pop()
 					if len(msg_list)==3:
 						nodeToSend = msg_list[1]

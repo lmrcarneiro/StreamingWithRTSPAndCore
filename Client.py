@@ -31,7 +31,7 @@ class Client:
 
 		self.neighAlive = False
 		self.aliveNeighLock = threading.Lock()
-		
+
 		self.serverPort = int(serverport)
 		self.rtpPort = int(rtpport)
 		self.fileName = filename
@@ -62,6 +62,10 @@ class Client:
 			sleep(10)
 			if self.neighAlive == False:
 				print("Neighbour",self.serverAddr,"is not alive!")
+			if self.state == self.TEARDOWN:
+				print("Exiting hearbeat thread...")
+				break
+
 			self.aliveNeighLock.acquire()
 			self.neighAlive = False
 			self.aliveNeighLock.release()
@@ -74,11 +78,13 @@ class Client:
 		while True:
 			data, address = sock.recvfrom(1024)
 			msg = data.decode('utf-8')
+			if self.state == self.TEARDOWN:
+				break
 			print("\n\n Received:", msg, "\n\n")
 			msg_list = msg.split(" ")
-
-			if msg_list[0] == "HEARTBEAT":
-				 self.sendUdp(address[0], "ACKED_HEARTBEAT")
+			
+			if msg_list[0] == "HEARTBEAT" and (not self.state == self.TEARDOWN):
+				self.sendUdp(address[0], "ACKED_HEARTBEAT")
 			elif msg_list[0] == "ACKED_HEARTBEAT":
 				self.aliveNeighLock.acquire()
 				self.neighAlive = True
