@@ -6,6 +6,7 @@ import socket, threading, sys, traceback, os
 import logging
 import threading
 from time import sleep
+import datetime
 
 from RtpPacket import RtpPacket
 
@@ -27,7 +28,12 @@ class OverlayNode:
 		self.neighbours = neighbours
 		
 		self.neighboursAlive = [False] * len(self.neighbours)
+		self.aliveNeighsLock = threading.Lock()
+		
 		self.nextNeigh = None
+		self.timeToDiscNeigh = []
+		self.timeForDiscoveringLastNeigh = datetime.datetime.min
+		self.prevTimeForDiscoveringLastNeigh = datetime.datetime.min
 		self.reachableClients = []
 		self.clientIsPlaying = []
 		self.nextNodeToReachClient = []
@@ -59,7 +65,9 @@ class OverlayNode:
 				neigh = self.neighbours[i]
 				if neighIsAlive == False:
 					print("Neighbour",neigh,"is not alive!")
+				self.aliveNeighsLock.acquire()
 				self.neighboursAlive[i] = False
+				self.aliveNeighsLock.release()
 			
 			# enviar mensagem para todos os vizinhos
 			for neigh in neighbours:
@@ -317,6 +325,7 @@ class OverlayNode:
 
 		print("Saying hello to neighbours!")
 		for neighb in self.neighbours:
+			self.timeToDiscNeigh.append(datetime.datetime.now())
 			self.sendUdp(neighb, "DISCOVER NOIP GO")
 	
 	def listenUdp(self):
@@ -395,10 +404,25 @@ class OverlayNode:
 				# ou é o próprio
 				# de qualquer forma tem já que saber qual o vizinho usar para o destino
 
+				self.prevTimeForDiscoveringLastNeigh = self.timeForDiscoveringLastNeigh
+				ind = 0
+				try:
+					ind = self.neighbours.index(address[0])
+				except ValueError as e:
+					print("\t\t*********ERROR: Couldnt find neighbour",src,"!!!!!**********")
+					return
+				self.timeForDiscoveringLastNeigh = datetime.datetime.now() - self.timeToDiscNeigh[ind] 
+
 				if self.nextNeigh is None:
 					self.nextNeigh = address[0]
 					print(self.nextNeigh,"is now my next neighbour")
-				
+					print("Discovered in",self.timeForDiscoveringLastNeigh,"ms")
+				else:
+					if self.timeForDiscoveringLastNeigh < self.prevTimeForDiscoveringLastNeigh:
+						self.nextNeigh = address[0]
+						print(self.nextNeigh,"is now my next neighbour")
+						print("Discovered in",self.timeForDiscoveringLastNeigh,"ms")
+
 				if len(msg_list) == 3: # é o próprio nó quem mandou o discover
 					print("I sent the DISCOVER myself!")
 				else:
@@ -435,7 +459,9 @@ class OverlayNode:
 			#print("Heartbeat ack came from",src)
 			try:
 				ind = self.neighbours.index(src)
+				self.aliveNeighsLock.acquire()
 				self.neighboursAlive[ind] = True
+				self.aliveNeighsLock.release()
 			except ValueError as e:
 				print("\t\t*********ERROR: Couldnt find neighbour",src,"!!!!!**********")
 

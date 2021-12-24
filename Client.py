@@ -1,7 +1,7 @@
 from tkinter import *
 import tkinter.messagebox
 from tkinter import ttk
-from PIL import Image, ImageTk
+from PIL import Image, ImageFile, ImageTk
 import socket, threading, sys, traceback, os
 from time import sleep
 
@@ -19,6 +19,8 @@ class Client:
 	PLAY = 1
 	PAUSE = 2
 	TEARDOWN = 3
+
+	#ImageFile.LOAD_TRUNCATED_IMAGES = True
 	
 	# Initiation..
 	def __init__(self, master, serveraddr, serverport, rtpport, filename, udpport):
@@ -26,7 +28,10 @@ class Client:
 		self.master.protocol("WM_DELETE_WINDOW", self.handler)
 		self.createWidgets()
 		self.serverAddr = serveraddr
+
 		self.neighAlive = False
+		self.aliveNeighLock = threading.Lock()
+		
 		self.serverPort = int(serverport)
 		self.rtpPort = int(rtpport)
 		self.fileName = filename
@@ -57,7 +62,9 @@ class Client:
 			sleep(10)
 			if self.neighAlive == False:
 				print("Neighbour",self.serverAddr,"is not alive!")
+			self.aliveNeighLock.acquire()
 			self.neighAlive = False
+			self.aliveNeighLock.release()
 			self.sendUdp(self.serverAddr, "HEARTBEAT")
 
 	def listenUdp(self):
@@ -73,7 +80,9 @@ class Client:
 			if msg_list[0] == "HEARTBEAT":
 				 self.sendUdp(address[0], "ACKED_HEARTBEAT")
 			elif msg_list[0] == "ACKED_HEARTBEAT":
+				self.aliveNeighLock.acquire()
 				self.neighAlive = True
+				self.aliveNeighLock.release()
 			elif msg_list[2] == "RETURN":
 				if self.nextNeigh is None:
 					self.nextNeigh = address[0]
@@ -160,7 +169,6 @@ class Client:
 					
 					currFrameNbr = rtpPacket.seqNum()
 					print("Current Seq Num: " + str(currFrameNbr))
-										
 					if currFrameNbr > self.frameNbr: # Discard the late packet
 						self.frameNbr = currFrameNbr
 						self.updateMovie(self.writeFrame(rtpPacket.getPayload()))
